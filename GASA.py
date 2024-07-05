@@ -24,16 +24,16 @@ class GASA(nn.Module):
         attr_query = self.attr_query(x)
         attr_key = self.attr_key(x)
         attr_value = self.attr_value(x)
-        print(f"Input x shape: {x.shape}")
+        # print(f"Input x shape: {x.shape}")
 
 
         attr_attention = torch.matmul(attr_query, attr_key.transpose(-2, -1)) / (self.hidden_size ** 0.5)
         attr_attention = attr_attention.masked_fill(attr_masks.unsqueeze(1) == 0, -1e9)
         attr_attention = F.softmax(attr_attention, dim=-1)
-        print(f"Attr_masks shape: {attr_masks.shape}")
+        # print(f"Attr_masks shape: {attr_masks.shape}")
 
         attr_context = torch.matmul(attr_attention, attr_value)
-        print(f"Attr_context shape: {attr_context.shape}")
+        # print(f"Attr_context shape: {attr_context.shape}")
 
         # 序列注意力
         seq_feature = self.conv(x.transpose(1, 2)).transpose(1, 2)
@@ -42,7 +42,7 @@ class GASA(nn.Module):
             F.adaptive_max_pool1d(seq_feature.transpose(1, 2), 1).squeeze(-1)
         ], dim=-1)
         seq_attention = self.seq_attention(seq_pool).unsqueeze(1)
-        print(f"Seq_attention shape: {seq_attention.shape}")
+        # print(f"Seq_attention shape: {seq_attention.shape}")
 
         # 融合
         fused_attention = self.fusion(torch.cat([
@@ -52,5 +52,5 @@ class GASA(nn.Module):
 
         output = fused_attention + x # 使用残差连接
 
-        print(f"Output shape: {output.shape}")
+        # print(f"Output shape: {output.shape}")
         return output
