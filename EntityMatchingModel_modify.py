@@ -8,9 +8,11 @@ from sklearn import metrics
 from tensorboardX import SummaryWriter
 import torch.optim as optim
 from torch.utils import data
-from torch.utils.data import Dataset, DataLoader
-from transformers import RobertaModel, RobertaTokenizer, get_linear_schedule_with_warmup
+from torch.utils.data import Dataset
+from transformers import get_linear_schedule_with_warmup, AutoTokenizer, AutoModel
 import os
+
+from GASA import GASA
 
 batch_size = 64
 n_epochs = 40
@@ -22,16 +24,19 @@ run_tag = run_tag.replace('/', '_')
 class EntityMatchingModel(nn.Module):
     def __init__(self, device='cuda'):
         super().__init__()
-        self.bert = RobertaModel.from_pretrained('roberta-base')
+        self.bert = AutoModel.from_pretrained('roberta-base')
         self.device = device
         # linear layer
         hidden_size = self.bert.config.hidden_size
+        self.gasa = GASA(hidden_size)
         # todo  输入768 输出2 归类为2分类任务
         self.fc = torch.nn.Linear(hidden_size, 2)
 
-    def forward(self, x1):
+    def forward(self, x1, attr_masks):
         x1 = x1.to(self.device) # (batch_size, seq_len)
-        enc = self.bert(x1)[0][:, 0, :]
+        bert_output = self.bert(x1)[0]
+        gasa_output = self.gasa(bert_output, attr_masks)
+        enc = gasa_output[:, 0, :]
         return self.fc(enc)
 
 
@@ -40,7 +45,7 @@ class EntityMatchingDataset(Dataset):
         self.pairs = []
         self.labels = []
         self.max_len = max_len
-        self.tokenizer = RobertaTokenizer.from_pretrained('roberta-base')
+        self.tokenizer = AutoTokenizer.from_pretrained('roberta-base')
         # todo ?
         self._load_data(data_path)
 
@@ -63,18 +68,38 @@ class EntityMatchingDataset(Dataset):
         right = self.pairs[idx][1]
 
         # left + right 将文本对 (left 和 right) 编码成 token ID 的序列
-        x = self.tokenizer.encode(text=left,
-                                  text_pair=right,
-                                  max_length=self.max_len,
-                                  truncation=True)
-        return x, self.labels[idx]
+        encoded = self.tokenizer.encode_plus(
+            text=left,
+            text_pair=right,
+            max_length=self.max_len,
+            truncation=True,
+            padding='max_length',
+            return_tensors='pt'
+        )
+
+        input_ids = encoded['input_ids'].squeeze(0)
+        attention_mask = encoded['attention_mask'].squeeze(0)
+
+        # 生成属性掩码
+        attr_mask = torch.zeros_like(input_ids)
+        attr_mask[input_ids == self.tokenizer.sep_token_id] = 1
+        attr_mask[input_ids == self.tokenizer.cls_token_id] = 1
+
+        return input_ids, attention_mask, attr_mask, self.labels[idx]
 
     @staticmethod
     def pad(batch):
-        x12, y = zip(*batch)
-        maxlen = max([len(x) for x in x12])
-        x12 = [xi + [0] * (maxlen - len(xi)) for xi in x12]
-        return torch.LongTensor(x12), torch.LongTensor(y)
+        input_ids, attention_masks, attr_masks, labels = zip(*batch)
+        max_len = max(len(ids) for ids in input_ids)
+
+        input_ids = [ids.tolist() + [0] * (max_len - len(ids)) for ids in input_ids]
+        attention_masks = [mask.tolist() + [0] * (max_len - len(mask)) for mask in attention_masks]
+        attr_masks = [mask.tolist() + [0] * (max_len - len(mask)) for mask in attr_masks]
+
+        return (torch.LongTensor(input_ids),
+                torch.LongTensor(attention_masks),
+                torch.LongTensor(attr_masks),
+                torch.LongTensor(labels))
 
 
 def train(trainset, validset, testset):
@@ -153,16 +178,15 @@ def train(trainset, validset, testset):
 
 
 def evaluate(model, iterator, threshold=None):
-    all_p = []
-    all_y = []
     all_probs = []
+    all_y = []
     with torch.no_grad():
         for batch in iterator:
-            x, y = batch
-            logits = model(x)
+            input_ids, attention_masks, attr_masks, labels = batch
+            logits = model(input_ids, attr_masks)
             probs = logits.softmax(dim=1)[:, 1]
             all_probs += probs.cpu().numpy().tolist()
-            all_y += y.cpu().numpy().tolist()
+            all_y += labels.cpu().numpy().tolist()
 
     if threshold is not None:
         pred = [1 if p > threshold else 0 for p in all_probs]
@@ -186,9 +210,9 @@ def train_step(train_iter, model, optimizer, scheduler):
     criterion = nn.CrossEntropyLoss()
     for i, batch in enumerate(train_iter):
         optimizer.zero_grad()
-        x, y = batch
-        prediction = model(x)
-        loss = criterion(prediction, y.to(model.device))
+        input_ids, attention_masks, attr_masks, labels = batch
+        prediction = model(input_ids, attr_masks)
+        loss = criterion(prediction, labels.to(model.device))
         loss.backward()
         optimizer.step()
         scheduler.step()
