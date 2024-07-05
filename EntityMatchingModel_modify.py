@@ -1,10 +1,8 @@
 from datetime import datetime
-
 import numpy as np
 import torch
 import torch.nn as nn
 from sklearn import metrics
-
 from tensorboardX import SummaryWriter
 import torch.optim as optim
 from torch.utils import data
