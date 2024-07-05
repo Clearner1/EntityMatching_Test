@@ -38,8 +38,8 @@ class EntityMatchingModel(nn.Module):
         attr_masks = attr_masks.to(self.device)
         bert_output = self.bert(x1)[0]
         gasa_output = self.gasa(bert_output, attr_masks)
-        enc = gasa_output[:, 0, :]
-        return self.fc(enc)
+        pooled_output = gasa_output.mean(dim=1)
+        return self.fc(pooled_output)
 
 
 class EntityMatchingDataset(Dataset):
@@ -82,25 +82,23 @@ class EntityMatchingDataset(Dataset):
         attention_mask = encoded['attention_mask'].squeeze(0)
 
         # 生成属性掩码
-        attr_mask = torch.zeros_like(input_ids)
-        attr_mask[input_ids == self.tokenizer.sep_token_id] = 1
-        attr_mask[input_ids == self.tokenizer.cls_token_id] = 1
+        attr_mask = attention_mask.clone()
+        attr_mask[input_ids == self.tokenizer.sep_token_id] = 0
+        attr_mask[input_ids == self.tokenizer.cls_token_id] = 0
 
         return input_ids, attention_mask, attr_mask, self.labels[idx]
 
     @staticmethod
     def pad(batch):
-        input_ids, attention_masks, attr_masks, labels = zip(*batch)
-        max_len = max(len(ids) for ids in input_ids)
+            input_ids, attention_masks, attr_masks, labels = zip(*batch)
 
-        input_ids = [ids.tolist() + [0] * (max_len - len(ids)) for ids in input_ids]
-        attention_masks = [mask.tolist() + [0] * (max_len - len(mask)) for mask in attention_masks]
-        attr_masks = [mask.tolist() + [0] * (max_len - len(mask)) for mask in attr_masks]
+            input_ids = torch.stack(input_ids)
+            attention_masks = torch.stack(attention_masks)
+            attr_masks = torch.stack(attr_masks)
+            labels = torch.tensor(labels)
 
-        return (torch.LongTensor(input_ids),
-                torch.LongTensor(attention_masks),
-                torch.LongTensor(attr_masks),
-                torch.LongTensor(labels))
+            return input_ids, attention_masks, attr_masks, labels
+
 
 
 def train(trainset, validset, testset):
