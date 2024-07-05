@@ -31,9 +31,11 @@ class EntityMatchingModel(nn.Module):
         self.gasa = GASA(hidden_size)
         # todo  输入768 输出2 归类为2分类任务
         self.fc = torch.nn.Linear(hidden_size, 2)
+        self.to(device)
 
     def forward(self, x1, attr_masks):
         x1 = x1.to(self.device) # (batch_size, seq_len)
+        attr_masks = attr_masks.to(self.device)
         bert_output = self.bert(x1)[0]
         gasa_output = self.gasa(bert_output, attr_masks)
         enc = gasa_output[:, 0, :]
@@ -46,7 +48,6 @@ class EntityMatchingDataset(Dataset):
         self.labels = []
         self.max_len = max_len
         self.tokenizer = AutoTokenizer.from_pretrained('roberta-base')
-        # todo ?
         self._load_data(data_path)
 
     def _load_data(self, data_path):
@@ -182,7 +183,7 @@ def evaluate(model, iterator, threshold=None):
     all_y = []
     with torch.no_grad():
         for batch in iterator:
-            input_ids, attention_masks, attr_masks, labels = batch
+            input_ids, attention_masks, attr_masks, labels = [b.to(model.device) for b in batch]  # 将所有批次数据移到正确的设备
             logits = model(input_ids, attr_masks)
             probs = logits.softmax(dim=1)[:, 1]
             all_probs += probs.cpu().numpy().tolist()
@@ -210,9 +211,9 @@ def train_step(train_iter, model, optimizer, scheduler):
     criterion = nn.CrossEntropyLoss()
     for i, batch in enumerate(train_iter):
         optimizer.zero_grad()
-        input_ids, attention_masks, attr_masks, labels = batch
+        input_ids, attention_masks, attr_masks, labels = [b.to(model.device) for b in batch]
         prediction = model(input_ids, attr_masks)
-        loss = criterion(prediction, labels.to(model.device))
+        loss = criterion(prediction, labels)
         loss.backward()
         optimizer.step()
         scheduler.step()

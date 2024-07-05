@@ -30,19 +30,24 @@ class GASA(nn.Module):
         attr_attention = F.softmax(attr_attention, dim=-1)
 
         attr_context = torch.matmul(attr_attention, attr_value)
-        attr_pool = torch.cat([F.avg_pool1d(attr_context.transpose(1, 2), kernel_size=attr_context.size(1)).squeeze(-1),
-                               F.max_pool1d(attr_context.transpose(1, 2), kernel_size=attr_context.size(1)).squeeze(-1)], dim=-1)
-
+        attr_pool = torch.cat([
+            F.adaptive_avg_pool1d(attr_context.transpose(1, 2), 1).squeeze(-1),
+            F.adaptive_max_pool1d(attr_context.transpose(1, 2), 1).squeeze(-1)
+        ], dim=-1)
         # 序列注意力
         seq_feature = self.conv(x.transpose(1, 2)).transpose(1, 2)
-        seq_pool = torch.cat([F.avg_pool1d(seq_feature.transpose(1, 2), kernel_size=seq_feature.size(1)).squeeze(-1),
-                              F.max_pool1d(seq_feature.transpose(1, 2), kernel_size=seq_feature.size(1)).squeeze(-1)], dim=-1)
-        seq_attention = self.seq_attention(seq_pool).transpose(1, 2)
+        seq_pool = torch.cat([
+            F.adaptive_avg_pool1d(seq_feature.transpose(1, 2), 1).squeeze(-1),
+            F.adaptive_max_pool1d(seq_feature.transpose(1, 2), 1).squeeze(-1)
+        ], dim=-1)
+        seq_attention = self.seq_attention(seq_pool).unsqueeze(1)
         seq_attention = F.softmax(seq_attention, dim=-1)
 
         # 融合
-        fused_attention = self.fusion(torch.cat([attr_pool.unsqueeze(1).expand(-1, x.size(1), -1),
-                                                 seq_attention.expand(-1, -1, self.hidden_size)], dim=-1))
+        fused_attention = self.fusion(torch.cat([
+            attr_pool.unsqueeze(1).expand(-1, x.size(1), -1),
+            seq_attention.expand(-1, x.size(1), -1)
+        ], dim=-1))
 
         output = fused_attention * x
         return output
