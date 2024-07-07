@@ -42,48 +42,6 @@ class EnhancedDynamicSimilaritySelector(nn.Module):
 
         return weighted_sim, weights, similarities
 
-# class MetaLearner(nn.Module):
-#     def __init__(self, selector):
-#         super().__init__()
-#         self.selector = selector
-#         self.meta_optimizer = torch.optim.Adam(self.selector.parameters(), lr=0.001)
-#
-#     def adapt(self, support_set, num_adaptation_steps=5):
-#         for _ in range(num_adaptation_steps):
-#             for repr1, repr2, label in support_set:
-#                 sim, _, _ = self.selector(repr1, repr2)
-#                 loss = F.binary_cross_entropy_with_logits(sim, label)
-#                 self.meta_optimizer.zero_grad()
-#                 loss.backward()
-#                 self.meta_optimizer.step()
-#
-#     def meta_learn(self, task_generator, num_tasks=10, num_query=5):
-#         meta_optimizer = torch.optim.Adam(self.selector.parameters(), lr=0.0001)
-#
-#         for _ in range(num_tasks):
-#             support_set, query_set = task_generator.generate_task()
-#
-#             # Clone the current model
-#             clone = EnhancedDynamicSimilaritySelector(
-#                 input_dim=self.selector.feature_extractor[0].in_features,
-#                 hidden_dim=self.selector.feature_extractor[0].out_features
-#             )
-#             clone.load_state_dict(self.selector.state_dict())
-#
-#             # Adapt the clone to the support set
-#             clone_learner = MetaLearner(clone)
-#             clone_learner.adapt(support_set)
-#
-#             # Evaluate the adapted model on the query set
-#             query_loss = 0
-#             for repr1, repr2, label in query_set[:num_query]:
-#                 sim, _, _ = clone(repr1, repr2)
-#                 query_loss += F.binary_cross_entropy_with_logits(sim, label)
-#
-#             # Update the original model
-#             meta_optimizer.zero_grad()
-#             query_loss.backward()
-#             meta_optimizer.step()
 
 # 使用示例
 if __name__ == "__main__":
@@ -91,16 +49,9 @@ if __name__ == "__main__":
 
     repr_layer = RepresentationLayer()
     selector = EnhancedDynamicSimilaritySelector(input_dim=1538, hidden_dim=256)
-    # meta_learner = MetaLearner(selector)
 
-    # # 模拟支持集
-    # support_set = [
-    #     (repr_layer("Example1"), repr_layer("Example2"), torch.tensor([1.0])),
-    #     (repr_layer("Different1"), repr_layer("Different2"), torch.tensor([0.0]))
-    # ]
 
     # 元学习适应
-    # meta_learner.adapt(support_set)
 
     # 测试
     value1 = "Test Value 123"
