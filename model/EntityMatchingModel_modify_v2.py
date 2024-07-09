@@ -15,10 +15,10 @@ from transformers import get_linear_schedule_with_warmup
 from tensorboardX import SummaryWriter
 
 save_model = True
-batch_size = 8
+batch_size = 32
 n_epochs = 20
 logdir = r"Structured/"
-task = "Structured/Beer"
+task = "Structured/Walmart-Amazon"
 run_tag = '%s' % (task)
 run_tag = run_tag.replace('/', '_')
 class GASA(nn.Module):
@@ -270,9 +270,9 @@ def train_step(train_iter, model, optimizer, scheduler):
         optimizer.step()
         scheduler.step()
 
-        # 可选：每隔几步打印一次损失
-        if i % 10 == 0:
-            print(f"step: {i}, loss: {loss.item()}")
+        # # 可选：每隔几步打印一次损失
+        # if i % 10 == 0:
+        #     print(f"step: {i}, loss: {loss.item()}")
 
         del loss  # 确保删除损失以释放内存
 
@@ -321,8 +321,8 @@ def evaluate(model, iterator, threshold=None):
     return f1, threshold
 
 if __name__ == "__main__":
-    trainset = IntegratedEntityMatchingDataset("../Beer/train.txt")
-    validset = IntegratedEntityMatchingDataset("../Beer/valid.txt")
-    testset = IntegratedEntityMatchingDataset("../Beer/test.txt")
+    trainset = IntegratedEntityMatchingDataset("../data/Walmart-Amazon/train.txt")
+    validset = IntegratedEntityMatchingDataset("../data/Walmart-Amazon/valid.txt")
+    testset = IntegratedEntityMatchingDataset("../data/Walmart-Amazon/test.txt")
 
     train(trainset, validset, testset)
