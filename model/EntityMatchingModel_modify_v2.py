@@ -223,23 +223,30 @@ def train(trainset, validset, testset):
         dev_f1, dev_threshold = evaluate(model, valid_iter)
         test_f1, _ = evaluate(model, test_iter, threshold=dev_threshold)
 
+
+        # 不保存模型：
         if dev_f1 > best_dev_f1:
             best_dev_f1 = dev_f1
             best_test_f1 = test_f1
-            best_threshold = dev_threshold
-            if save_model:
-                # create the directory if not exist
-                directory = os.path.join(logdir, task)
-                if not os.path.exists(directory):
-                    os.makedirs(directory)
 
-                # save the checkpoints for each component
-                ckpt_path = os.path.join(directory, 'model.pt')
-                ckpt = {'model': model.state_dict(),
-                        'optimizer': optimizer.state_dict(),
-                        'scheduler': scheduler.state_dict(),
-                        'epoch': epoch}
-                torch.save(ckpt, ckpt_path)
+        # # 保存模型
+        # if dev_f1 > best_dev_f1:
+        #     best_dev_f1 = dev_f1
+        #     best_test_f1 = test_f1
+        #     best_threshold = dev_threshold
+        #     if save_model:
+        #         # create the directory if not exist
+        #         directory = os.path.join(logdir, task)
+        #         if not os.path.exists(directory):
+        #             os.makedirs(directory)
+        #
+        #         # save the checkpoints for each component
+        #         ckpt_path = os.path.join(directory, 'model.pt')
+        #         ckpt = {'model': model.state_dict(),
+        #                 'optimizer': optimizer.state_dict(),
+        #                 'scheduler': scheduler.state_dict(),
+        #                 'epoch': epoch}
+        #         torch.save(ckpt, ckpt_path)
 
         # Logging
         print(f"epoch {epoch}: dev_f1={dev_f1:.4f}, test_f1={test_f1:.4f}, best_dev_f1={best_dev_f1:.4f}, best_test_f1={best_test_f1:.4f}")
